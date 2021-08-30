@@ -1,0 +1,383 @@
+%% HMM with rest and task data
+% The following is code that I wrote for a music listening task with
+% healthy adult EEG data. Before starting HMM, data were pre-processed
+% (filtered, rereferenced, cleaned, and source localized) in Brainstorm,
+% and each trial was added to a trial*participant cell array (in this case,
+% 53 possible trials*18 participants). This script will walk through the
+% following steps:
+%   1. Getting an array of empty values for missing data (this will help
+%   later)
+%   2. Vectorizing the data matrix
+%   3. Initializing the HMM parameters
+%   4. Running/saving the HMM analysis
+%   5. Extracting metrics using the HMM toolbox
+
+%% 1. Getting the non-empty index for rest and task
+%All_Data here is my cell array (all cells need to be in time*source order)
+
+N_nonempty = cell(size(All_Data,2),1);%initialize the output array
+for subject = 1:size(N_nonempty,1)%participants
+subjectdata = All_Data(:,subject);%get the relevant column
+N_nonempty{subject} = find(~cellfun(@isempty,subjectdata));%find the empty cells, add them to the new array
+end
+
+clear inmat subject subjectdata %make look nice
+
+%% 2. Vectorizing
+
+data = reshape(All_Data,[],1);%reshape the data
+index = cellfun(@isempty, data) == 0;%find the empty cells
+data = data(index);%destroy them! (keep only the full cells)
+clear index
+%% 3. Initializing Parameters
+clear T
+K = 12; % number of states you want
+ndim = 68; % number of channels/sources/regions you have
+time = 10;%number of timepoints you have per trial
+N = 1; % number of trials (my procedure didn't repeat anything, so N=1)
+Fs = 512;% sampling rate
+T(1:length(data)) = {(Fs*time * ones(N,1))}; % number of data points per song (10 seconds*Fs = 5120)
+T = T';%transposing the T vector to match our data vector
+%% 3.1 Setting the initialization parameters
+clear options
+options = struct();
+options.K = K; 
+options.Fs = Fs;
+options.covtype = 'full';
+options.zeromean = 0;
+options.standardise = 1;
+options.onpower = 1;%Built-in Hilbert...good for EEG, unsure for fMRI
+options.DirichletDiag = 10;%this will keep your states maximally distinct
+options.downsample = 256;%downsample the data (this will also be applied to T - yay!)
+options.detrend = 1;%detrending, for slow drifts
+options.pca = 0.90;% 90% of variance captured
+options.useParallel=0;
+options.verbose = 1;%tells you what's happening
+options.initrep = 1; % Initialize more quickly
+options.initcyc = 1; % Always choose the first initialization
+options.cyc = 90; % Maximum of  90 cycles
+%% 4. Run and save the HMM! 
+%This takes several hours and will kick up an error if T and data are not the same size
+[hmm, Gamma, ~, vpath,~,~,~] = hmmmar(data,T,options);
+% Sending the output to a structure array
+Rest_hmm12.hmm = hmm;
+Rest_hmm12.Gamma = Gamma;
+Rest_hmm12.vpath = vpath;
+filename = '/Users/Desktop/Rest_hmm12.mat';
+save(filename, 'Rest_hmm10s12');
+%% 4.1 Populate the structure with our input parameters and region labels
+Rest_hmm12.T = T;
+Rest_hmm12.options = options;
+Rest_hmm12.lat_labs = lat_labs;%put your own label file here...
+Rest_hmm12.N_nonempty = N_nonempty;
+Rest_hmm12.rest_labs = rest_labs;%...and here!
+%% Step 5: Metrics
+% The rest of this script is extracting information from the HMM analysis.
+% There are a lot of possible things to extract, and this isn't an
+% exhaustive list, just what I'm using for this analysis. I've tried to
+% avoid relying on stuff I've hard-coded in, but it's going to come up in
+% the plotting sections!
+%% 5.1 Getting the FC Matrices:
+FC = cell(1,Rest_hmm12.options.K);%initialize the output cell
+
+for i = 1:length(FC)
+    [~,S] = getFuncConn(Rest_hmm12.hmm,i);%get the correlation matrix
+    FC{i} = S; %populate the FC cell
+end
+
+Rest_hmm12.FC = FC;%add it to the structure array
+clear i S  % make look nice
+%% 5.1.2 Plotting the transitional probability matrix and FC matrices:
+K = Rest_hmm12.options.K;
+figure 
+subplot(3,3,1)
+TProps = getTransProbs(Rest_hmm12.hmm);
+imagesc(TProps)
+colorbar
+title(sprintf('Transitional Probabilities, %d states',K),'FontSize',18)
+xticks(1:K)
+yticks(1:K)
+xlabel('State')
+ylabel('State')
+
+for i = 1:Rest_hmm12.options.K
+subplot(3,3,i+1)
+imagesc(Rest_hmm12.FC{i})
+caxis([0 1])
+colorbar
+yticks(17:33:50)
+yticklabels({'Left','Right'})
+title(sprintf('State %d',i),'FontSize',18)
+end
+clear i S res K
+
+%Rest_hmm12.Tprops = TProps;%adding the Transitional Probability matrix to the struture
+clear FO array 
+%% 5.2 Get the grand mean of the FC states, and mean centre each state
+%optional, but useful if your states all look alike at first glance
+K = Rest_hmm12.options.K;
+rois = 68;% how many regions you have
+FC = cat(3,FC{:});%rearranging the cell into a 3-d array
+Rest_hmm12.mean_FC = mean(FC,3);%mean
+Rest_hmm12.std_FC = std(FC,0,3);%standard deviation
+mc_FC = nan(rois,rois,K);%setting the mean output matrices
+for i = 1:K
+    data = Rest_hmm12.FC{1,i};
+    tempnew = (data-Rest_hmm12.mean_FC)./Rest_hmm12.std_FC;%mean centering!
+    mc_FC(:,:,i) = tempnew;
+end
+Rest_hmm12.mc_FC = mc_FC;% put it in the structure array!
+clear data i tempnew mc_FC FC
+%% 5.2.1 Plotting the grand mean and mean-centred FC matrices!
+K = Rest_hmm12.options.K;
+figure 
+
+subplot(5,3,1)
+imagesc(Rest_hmm12.mean_FC)
+colorbar
+title(sprintf('Grand Mean FC, K = %d',K),'FontSize',18)
+yticks(17:33:50)
+yticklabels({'Left','Right'})
+
+for i = 1:K
+subplot(5,3,i+1)
+imagesc(Rest_hmm12.mc_FC(:,:,i))
+colorbar
+yticks(17:33:50)
+yticklabels({'Left','Right'})
+title(sprintf('State %d, Mean-Centred',i),'FontSize',16)
+end
+clear i S res K
+%% 5.3 Net means:
+Rest_hmm12.Metrics = struct();%initialize a structure array within our existing structure array
+data = Rest_hmm12.hmm;
+net_mean = getMean(data); % get the mean activity of each state
+net_mean = zscore(net_mean); % show activations for each state relative to the state average
+Rest_hmm12.Metrics.Means = net_mean;% put it in the array in the array
+
+clear net_mean
+%% 5.3.1 Plotting!
+K = Rest_hmm12.options.K;
+figure
+imagesc(Rest_hmm12.Metrics.Means)
+yticks(1:rois)
+yticklabels(Rest_hmm12.lat_labs)
+colorbar
+xticks(1:K)
+xlabel('States')
+title('Group mean activity per state, songs and rest','FontSize',18)
+
+%% 5.4 Transitional Probability Matrix
+%this will give you the transitional probability matrix for your entire
+%dataset. I'll send the code for doing this task-wise in a separate file
+
+data = Rest_hmm12.hmm;
+TProb = getTransProbs(data);
+
+Rest_hmm12.Metrics.TProbs = TProb;
+clear i temp data TProb
+%% 5.5 Manually downsampling T
+%now, we're getting into task- and participant-wide measures, so we need
+%accurate time vectors for indexing
+T_ds = Rest_hmm12.T; % number of data points per song (40 seconds*Fs = 20480)
+for i = 1:length(T_ds)
+    T_ds{i} = T_ds{i}/2;%I downsampled by 2 (512->256)
+end
+Rest_hmm12.T_ds = T_ds;
+clear T_ds i;
+%% 5.5.1 Switching Rate and Fractional Occupancy:
+data = Rest_hmm12.Gamma;%getting the relevant HMM output
+options = Rest_hmm12.options;
+T = Rest_hmm12.T_ds;
+SR = getSwitchingRate(data,T,options);
+FO = getFractionalOccupancy(data,T,options,2);
+
+%This will give us long column vectors of data (pieces*participants), so
+% next, we get it back in matrix and cell space:
+
+start = 1;% initialize a counter
+tasks = 53;%how many tasks?
+parts = 17;%how many participants?
+tempmat_SR = nan(tasks,parts);%initialize the empty matrix for SR
+tempmat_FO = cell(1,parts);%empty cell array for FO (task*state*participant)
+for i = 1:parts% Participants
+    dex = N_nonempty{i};% each participant's unique piece index
+    tempdata = SR(start:(start-1)+length(dex));%getting their SR data
+    tempmat_SR(dex,i) = tempdata;%populating the relevant rows in the empty matrix
+    tempdataFO = FO(start:(start-1)+length(dex),:);% getting each participant's FO data
+    tempmat_FO{i} = tempdataFO;%putting it in a cell
+    start = start+length(dex);%rolling over the counter to pick up where this one left off
+end
+Rest_hmm12.Metrics.SR = tempmat_SR;% put it in the array!
+Rest_hmm12.Metrics.FO = tempmat_FO;
+clear data options T temp SR FO start tempmat_SR tempmat_FO i dex tempdata % make look nice
+
+%% 5.5.2. Visualize SR matrix: now, we look at it!
+
+data = Rest_hmm12.Metrics.SR;
+figure
+imagesc(data)%zscores won't work unless you interpolate the nans
+xticks(1:size(data,2))
+xlabel('Participants')
+yticks(1:length(data))
+yticklabels(rest_labs)
+colorbar
+title('Switching Rate','FontSize',16)
+clear data
+%% 5.5.3 Visualizing FO matrices
+data = Rest_hmm12.Metrics.FO;
+figure
+for i = 1:parts
+    subplot(4,5,i)%this will need to be adjusted depending on your # of participants
+    imagesc(data{i})%zscores won't work unless you interpolate the nans
+    colorbar
+    title(sprintf('FO, Subject %d',i))
+end
+clear data i
+
+%% 5.6 Reorganizing the vpath and Gamma 
+vpath_Sub = cell(parts,1);
+Gamma_Sub = cell(parts,1);
+data = Rest_hmm12.N_nonempty;
+vdata = Rest_hmm12.vpath;
+gdata = Rest_hmm12.Gamma;
+start = 1;
+for i = 1:parts
+    dex = length(data{i});
+    stop = dex*(5120);%how many timepoints per piece (20 s at 512/2 Hz)
+    newdata = vdata(start:(start-1)+stop);
+    newgamma = gdata(start:(start-1)+stop,:);
+    start = stop+1;
+    vpath_Sub{i} = newdata;
+    Gamma_Sub{i} = newgamma;
+end
+Rest_hmm12.vpath_Sub = vpath_Sub;
+Rest_hmm12.Gamma_Sub = Gamma_Sub;
+clear vpath_Sub data vdata start i dex stop newdata Gamma_Sub gdata
+
+clear piece_start piece_stop s piecedata piecedex
+%% 5.7 Reorganizing the vpath by piece:
+
+data = Rest_hmm12.vpath_Sub;%get the long vpath vectors
+gdata = Rest_hmm12.Gamma_Sub;
+vpath_Piece = cell(parts,tasks);%initialize a participant*piece cell
+Gamma_Piece = cell(parts,tasks);
+for i = 1:parts%participants
+    piecedex = Rest_hmm12.N_nonempty{i};%get their nonempty piece index
+    tempdata = data{i};%and the vector
+    tempdatag = gdata{i};
+    start = 1;%start a counter
+        for s = 1:length(piecedex)
+            stop = (start-1)+(5120);%getting the stop points (5120 in this case)
+            piecedata = tempdata(start:stop);%get the right snippet of data
+            vpath_Piece{i,piecedex(s)} = piecedata';%put it in the cell in part:piece order
+            piecedatag = tempdatag(start:stop,:);
+            Gamma_Piece{i,piecedex(s)} = piecedatag';
+            start = stop+1;%re-do the start point
+        end
+end
+Rest_hmm12.vpath_Piece = vpath_Piece;% put it in the array!
+Rest_hmm12.Gamma_Piece = Gamma_Piece;
+clear data vpath_Piece i piecedex tempdata start s stop piecedata piecedatag Gamma_Piece
+%% 6. Graph Theory
+addpath(genpath('BCT'));
+mod = nan(1,K);% pre-allocating variables
+vars = nan(1,K);
+data = Rest_hmm12.FC;
+
+%% 6.1 Doing graph metrics on state FC matrices
+tempdata = cell(1,K);
+for i = 1:K
+    temp = data(:,:,i);
+    temp(isnan(temp)) = 1;
+    tempdata{i} = temp;
+end
+data = tempdata;
+clear i tempdata
+
+for p = 1:size(data,1)
+    for s = 1:size(data,2)
+        if isempty(data{p,s})
+            continue
+        else
+            [~, Q] = modularity_und(data{p,s});%getting modularity for these undirected graphs
+            temp = tril(data{p,s},-1);
+            v = var(temp(:));% getting the variation
+            vars(p,s) = v;
+            mod(p,s) = Q;
+        end
+    end
+end
+Rest_hmm12.mod = mod;%put it in the array!
+Rest_hmm12.var = vars;
+clear p Q s mod v var
+%% 6.2 Now, source-wise variables!
+strengths = cell(1,K);%strength
+evc = cell(1,K);%eigenvector centrality 
+degs = cell(1,K);%degree (not super helpful as the graphs are unthresholded)
+dim1 = size(data{1,1},2);
+dim2 = size(data,1);
+for p = 1:size(data,2)
+    tempmat_s = nan(dim1,dim2);%pre-allocate!
+    tempmat_evc = nan(dim1,dim2);
+    tempmat_d = nan(dim1,dim2);
+    for s = 1:size(data,1)
+        if isempty(data{s,p})%check the data for empty spaces
+            continue
+        else
+        stemp = strengths_und(data{s,p});%get the metrics
+        ectemp = eigenvector_centrality_und(data{s,p});
+        dtemp = degrees_und(data{s,p});
+        tempmat_s(:,s) = stemp';
+        tempmat_evc(:,s) = ectemp';
+        tempmat_d(:,s) = dtemp';
+        end
+    end
+    strengths{p} = tempmat_s;%add them to the cells
+    evc{p} = tempmat_evc;
+    degs{p} = tempmat_d;
+end
+Rest_hmm12.Strength = cell2mat(strengths);%put them in the array!
+Rest_hmm12.EigCent = cell2mat(evc);
+Rest_hmm12.Degree = cell2mat(degs);
+clear p s tempmat_s tempmat_evc strengths evc tempmat_d degs  data dim1 dim2...
+    dtemp stemp temp vars ectemp
+
+%% 6.1.1 Plot the graph metrics:
+figure % Variation
+subplot(1,2,1)
+imagesc(Rest_hmm12.var')
+colorbar
+yticks(1:K)
+ylabel('State')
+xticks([])
+title('Variation in state-wise FC Matrices','FontSize',18)
+
+subplot(1,2,2)%Modularity
+imagesc(Rest_hmm12.mod')
+colorbar
+yticks(1:K)
+ylabel('State')
+xticks([])
+title('Modularity in state-wise FC Matrices','FontSize',18)
+%% 6.2.1 Strength and eigenvector centrality plots!
+figure 
+
+subplot(1,2,1)
+imagesc(Rest_hmm12.Strength)
+colorbar
+yticks(1:68)
+yticklabels(Rest_hmm12.lat_labs)
+xticks(1:K)
+xlabel('State')
+title('Strength by State','FontSize',18)
+
+subplot(1,2,2)
+imagesc(Rest_hmm12.EigCent)
+colorbar
+yticks(1:68)
+yticklabels(Rest_hmm12.lat_labs)
+xticks(1:K)
+xlabel('State')
+title('Eigenvector Centrality by State','FontSize',18)
+
