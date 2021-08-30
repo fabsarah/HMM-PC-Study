@@ -1,0 +1,183 @@
+%% Plotting Syntax: Figure 1
+res = Time_PLS_20.Results.r_timespace;
+K = 12;
+LV = 1;
+%this is plotting the bootstrap coefficient. It shows the weight of channel
+%by frequency.
+
+%data = Time_PLS_20.TPTMIR.Results.r_TPTMIRall;
+data = res;
+x = (data.boot_result.compare_u(:,LV));
+y = reshape(x(1:36),K,[]);
+y(:,4) = x(37);
+x = y;
+%x = reshape(x,K,K)';
+%z = data.boot_result.orig_corr(:,LV);
+z = data.boot_result.orig_usc(:,LV);
+yneg = data.boot_result.llusc(:,LV);
+ypos = data.boot_result.ulusc(:,LV);
+dimx = size(x);
+%%
+figure
+subplot(1,2,1)
+x(abs(x)<3) = nan;
+x = flipud(x);
+x(dimx(1)+1,1:dimx(2)) = nan;
+x(:,dimx(2)+1) = nan;
+s = pcolor(x);
+s.LineWidth = 1.5;
+set(gca, 'YTickLabel', num2str(reshape(get(gca, 'YTick'),[],1),'%.3f   ') )
+%imagesc(x)
+%caxis([-15 15])
+colorbar
+yticks(1:12)
+yticklabels(12:-1:1)
+ylabel('State')
+xticks(1:4)
+xticklabels({'State Lifetimes';'State Visits';'Fractional Occupancy';...
+    'Switching Rate'});
+xtickangle(45)
+title(sprintf('Brain Measures, LV %d, p = %d',LV,data.perm_result.sprob(LV)),...
+    'FontSize',16)
+
+subplot(1,2,2)
+bar(z)
+grid on
+hold on
+errorbar(1:3,z,yneg-z,ypos-z,'.')
+ylabel('Design Scores')
+xticklabels({'Rest','Control','Experiment'})
+xtickangle(45)
+xlabel('Condition')
+title(sprintf('Latent Variable %d',LV),'FontSize',16)
+
+hold off
+clear x y z K LV yneg ypos s
+%% Figure 2
+data = Rest_hmm20s12.Time.TProb_PLS;
+K = 12;
+LV = 2;
+
+%data = Rest_hmm20s12.Time.TProb_PLS;
+x = (data.boot_result.compare_u(:,LV));
+x = reshape(x,K,K)';
+x(abs(x)<4) = nan;
+dimx = size(x);
+%z = data.boot_result.orig_corr(:,LV);
+%yneg = data.boot_result.llcorr(:,LV);
+%ypos = data.boot_result.ulcorr(:,LV);
+
+z = data.boot_result.orig_usc(:,LV);
+yneg = data.boot_result.llusc(:,LV);
+ypos = data.boot_result.ulusc(:,LV);
+%%
+figure
+subplot(1,2,1)
+x = flipud(x);
+x(dimx(1)+1,1:dimx(2)) = nan;
+x(:,dimx(2)+1) = nan;
+s = pcolor(x);
+s.LineWidth = 1.5;
+set(gca, 'YTickLabel', num2str(reshape(get(gca, 'YTick'),[],1),'%.3f   ') )
+colorbar
+yticks(1:12)
+yticklabels(12:-1:1)
+ylabel('State')
+xticks(1:12)
+xlabel('State')
+title(sprintf('Transitional Probabilities, LV %d, p = %d',LV,data.perm_result.sprob(LV)),...
+    'FontSize',16)
+
+subplot(1,2,2)
+bar(z)
+grid on
+hold on
+errorbar(1:3,z,yneg-z,ypos-z,'.')
+ylabel('Design Scores')
+xticklabels({'Rest','Control','Experiment'})
+xtickangle(45)
+xlabel('Condition')
+title(sprintf('Latent Variable %d',LV),'FontSize',16)
+
+hold off
+clear x y z K LV yneg ypos s
+%%
+subplot(1,3,2)
+%z = res.boot_result.orig_corr(:,1);
+y = reshape(z(1:180),15,12)';
+y(abs(y)<0.3) = nan;
+y = flipud(y);
+y(13,1:15) = nan;
+y(:,16) = nan;
+s = pcolor(y);
+s.LineWidth = 1.5;
+yticks(1:12)
+yticklabels(12:-1:1)
+xticks(1:15)
+xticklabels(xlabs)
+xtickangle(45)
+colorbar
+title(sprintf('Latent Variable %d, MIR Correlations Control',LV),'FontSize',16)
+clear y
+
+subplot(1,3,3)
+%z = res.boot_result.orig_corr(:,1);
+y = reshape(z(181:360),15,12)';
+y(abs(y)<0.3) = nan;
+y(13,1:15) = nan;
+y(:,16) = nan;
+s = pcolor(y);
+s.LineWidth = 1.5;
+yticks(1:12)
+yticklabels(12:-1:1)
+xticks(1:15)
+xticklabels(xlabs)
+xtickangle(45)
+colorbar
+title(sprintf('Latent Variable %d, MIR Correlations Experiment',LV),'FontSize',16)
+
+hold off
+clear x y z K LV yneg ypos s
+%% Figure 9
+data = Time_PLS_20.TPT.Results.r_TPTall;
+LV = 1;
+BehavLabs = {'LT + Pitch + Tempo';...
+    'LT + Pitch - Tempo';'LT - Pitch -Tempo';'LT - Pitch +Tempo';...
+    'LT Neutral';'Visits + Pitch + Tempo';'Visits + Pitch - Tempo';...
+    'Visits - Pitch -Tempo';'Visits - Pitch + Tempo';'Visits Neutral';...
+    'LT Happy';'LT Tranquil';'LT Sad';...
+    'LT Angry';'LT Neutral';'Visits Happy';'Visits Tranquil';...
+    'Visits Sad';'Visits Angry';'Visits Neutral';};
+x = (data.boot_result.compare_u(:,LV));
+x = reshape(x,12,12)';
+x(abs(x)<2) = nan;
+
+z = data.boot_result.orig_corr(:,LV);
+yneg = data.boot_result.llcorr(:,LV);
+ypos = data.boot_result.ulcorr(:,LV);
+%%
+figure
+subplot(1,2,1)
+x = flipud(x);
+x(13,1:12) = nan;
+x(:,13) = nan;
+s = pcolor(x);
+s.LineWidth = 1.5;
+colorbar
+yticks(1:12)
+yticklabels(12:-1:1)
+xticks(1:12)
+title('Transitional Probability PLS: Experiment','FontSize',16)
+clear x s 
+
+subplot(1,2,2)
+bar(z(:,1))
+hold on
+errorbar(1:length(z(:,1)),z(:,1),yneg-z(:,1),ypos-z(:,1),'.')
+colorbar off
+grid on
+xticks(1:length(BehavLabs))
+xticklabels(BehavLabs)
+xtickangle(45)
+xlim([0 length(BehavLabs)+1])
+title('Control Pieces, Orig Corr','FontSize',16)
