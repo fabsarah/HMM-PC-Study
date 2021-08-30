@@ -1,0 +1,49 @@
+%% Getting the Transitional Probability matrices manually
+% this script is an adaptation of the HMM function getTransProbs.
+% The input matrix (INPUT) is a task*participant cell matrix of the vpath,
+% which you can get by dividing up the vpath you get from the HMM analysis
+% by time. The output (OUTPUT) will be a task*participant cell matrix of
+% transitional probability matrices. These may be smaller than K
+% (sometimes, not all states are represented),which is okay! I wrote a
+% function called square_insert.m (you can download it here:
+% https://github.com/fabsarah/square_insert) that will fix this
+
+subs = 17;%how many particpants you have
+task = 53;%how many tasks you have
+Fs = 256;%your sampling rate
+OUTPUT = cell(task,subs);
+wdws = 20;%how many time windows do you have?
+for i = 1:task%task
+    for part = 1:subs %participant
+    tempdata = INPUT{part,i};
+    if isempty(tempdata)
+        continue
+    else
+    tempdata = reshape(tempdata,Fs,[])';
+    tempdata = double(tempdata);
+    tempout = cell(1,20);
+    for sec = 1:wdws
+        tempdata2 = tempdata(sec,:);
+        tempstates = unique(tempdata2);%seeing if we have missing states
+        missing = setdiff((1:12),tempstates);%getting a vector of missing states
+        counts_mat = full(sparse(tempdata2(1:end-1),tempdata2(2:end),1));
+        tp_mat = bsxfun(@rdivide,counts_mat,sum(counts_mat,2));%getting the matrix
+        TP = tp_mat;
+        [K,~,Q] = size(TP);
+        for j = 1:Q
+            TPj = TP(:,:,j);
+            %TPj(eye(K)==1) = 0;
+                for k = 1:K
+                    TPj(k,:) = TPj(k,:) / sum(TPj(k,:)); 
+                end
+            TP(:,:,j) = TPj; 
+        end
+
+        tempout{sec} = TP;
+    end
+    OUTPUT{i,part} = tempout;
+    end
+    end
+end
+clear missing i j k TPj TP K Q tempdata counts_mat trans_mat tempout...
+    tempdata2 tp_mat sec tempstates
