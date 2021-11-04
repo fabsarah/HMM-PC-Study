@@ -1,2 +1,2 @@
 # HMM-PC-Study
-Code for running HMM and statistical analysis for the PC study detailed in Faber &amp; McIntosh (2021)
+Code for running HMM and statistical analysis for the PC study detailed in Faber &amp; McIntosh (In preparation)
