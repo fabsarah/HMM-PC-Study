@@ -1,0 +1,134 @@
+%% TProb PLS 
+% In this script, we'll be averaging the Transitional probability matrices extracted in 
+% step 3 for PLS. You'll need the pls package from the ReadMe and a lot of tea. Things
+% get more project-specific here (sorry), and I've tried to indicate where this is
+% throughout the code. This is why you need a lot of tea.
+
+%% 1. Average the TProb matrices down by task
+
+data = Rest_hmm12.TPT.TPT_P;
+numtasks = 3;%how many types of tasks do you have?
+parts = 17;% how many participants do you have?
+
+task_index = cell(numtasks,1);
+% these are row-wise indices for my tasks. Adjust to suit your data:
+task_index{1} = [1:6,47:53];%rest
+task_index{2} = [7:11,42:46];%control
+task_index{3} = (12:41);%experiment
+TPT_Means = cell(parts,numtasks);
+
+%%
+for task = 1:numtasks
+    for part = 1:parts
+    temp = data(part,task_index{task});%get the relevant data
+    temp = reshape(temp,1,[]);
+    temp = cat(3,temp{:});%reshape into a 3-D array
+    tempmean = mean(temp, 3);%average via demension 3
+    TPT_Means{part,task} = tempmean;%into the cell!
+    end
+end
+clear task data
+Rest_hmm12.TPT.TPT_Means = TPT_Means;
+
+%% 2. Vectorize the data for PLS
+data = Rest_hmm12.TPT.TPT_Means;
+PLS_TPT = cell(3,1);
+K = Rest_hmm12.K;%the original K value (how many states you have)
+
+for cond = 1:numtasks
+    tempmat = nan(parts,K*K);
+    for part = 1:17
+    tempdata = data{part,cond};
+    tempmat(part,:) = reshape(tempdata',1,[]);
+    end
+    PLS_TPT{cond} = tempmat;
+end
+clear data cond tempmat tempdata part
+
+Rest_hmm12.TPT.Input.PLS_TPT = PLS_TPT;
+
+%% 3. And now the PLS!
+addpath(genpath('Pls'))
+clear option
+option.method = 1;% mean-centred PLS
+option.num_perm = 500;
+option.num_boot = 100;
+indata = cell2mat(Rest_hmm12.TPT.Input.PLS_TPT);
+
+tempres = pls_analysis({indata}, parts,numtasks,[option]);%running the PLS
+Rest_hmm12.TPT.Results.TProb_PLS = tempres;
+
+%% 4. Plot the results!
+LV = 1;%what latent variable do you want to plot?
+
+data = Rest_hmm12.Time.TProb_PLS;
+x = (data.boot_result.compare_u(:,LV));
+x = reshape(x,K,K)';
+%x(abs(x)<4) = 0; %you can threshold the matrices for clarity
+
+z = data.boot_result.orig_usc(:,LV);
+yneg = data.boot_result.llusc(:,LV);
+ypos = data.boot_result.ulusc(:,LV);
+
+%%
+figure
+subplot(1,2,1)
+shower_tile_plot(x)%adapted Matlab pcolor plot 
+colorbar
+pbaspect([1 1 1])
+yticks(1:K)
+yticklabels(K:-1:1)
+ylabel('State')
+xlabel('State')
+title(sprintf('Brain States, LV %d, p = %d',LV,data.perm_result.sprob(LV)),...
+    'FontSize',16)%print the title with the LV's p value
+
+subplot(1,2,2)
+bar(z)
+grid on
+hold on
+errorbar(1:length(z),z,yneg-z,ypos-z,'.')
+ylabel('Design Scores')
+xticklabels({'Rest','Control','Experiment'})%specific to my data
+xlabel('Condition')
+title(sprintf('Latent Variable %d, Transitional Probs by Task',LV),'FontSize',16)
+
+hold off
+clear x y z K LV yneg ypos
+
+%% 5.1 Behavioural TProb PLS: Tasks Together
+% Here, you can take output from another part of your data as long as the new matrix has as many 
+% rows as the original matrix. Here, I'm using behavioural data from the same participants (same
+% number of rows) in 2/3 of the original tasks. 
+
+Side_2 = Rest_hmm12.TPT.Input.Side_2;%behavioural data
+
+%% Run the PLS
+clear option
+option.method = 3;% Behavioural PLS
+option.num_perm = 500;
+option.num_boot = 100;
+option.stacked_behavdata = cell2mat(Side_2);% the behaviour matrix
+indata = cell2mat(Side_1);
+
+r_TPTall = pls_analysis({indata}, parts, (numtasks-1),[option]);%running the PLS
+
+%% 5.2 Behavioural TProb PLS: Individual Tasks
+clear option
+option.method = 3;% Behavioural PLS
+option.num_perm = 500;
+option.num_boot = 100;
+option.stacked_behavdata = Side_2{1};% the behaviour matrix
+indata = Side_1{1};
+
+r_TPTctrl = pls_analysis({indata}, 17, 1,[option]);%running the PLS
+
+% Again, but with the second task:
+clear option
+option.method = 3;% Behavioural PLS
+option.num_perm = 500;
+option.num_boot = 100;
+option.stacked_behavdata = Side_2{2};% the behaviour matrix
+indata = Side_1{2};
+
+r_TPTexp = pls_analysis({indata}, 17, 1,[option]);%running the PLS
