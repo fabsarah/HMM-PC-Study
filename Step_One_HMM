@@ -140,10 +140,8 @@ yticks(17:33:50)
 yticklabels({'Left','Right'})
 title(sprintf('State %d',i),'FontSize',18)
 end
-clear i S res K
+clear i S res K FO array
 
-%Rest_hmm12.Tprops = TProps;%adding the Transitional Probability matrix to the struture
-clear FO array 
 %% 5.2 Get the grand mean of the FC states, and mean centre each state
 %optional, but useful if your states all look alike at first glance
 K = Rest_hmm12.options.K;
