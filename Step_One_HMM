@@ -58,7 +58,7 @@ options.initcyc = 1; % Always choose the first initialization
 options.cyc = 90; % Maximum of  90 cycles
 %% 4. Run and save the HMM! 
 %This takes several hours and will kick up an error if T and data are not the same size
-[hmm, Gamma, ~, vpath,~,~,~] = hmmmar(data,T,options);
+[hmm, Gamma, Xi, vpath,~,~,~] = hmmmar(data,T,options);
 % Sending the output to a structure array
 Rest_hmm12.hmm = hmm;
 Rest_hmm12.Gamma = Gamma;
