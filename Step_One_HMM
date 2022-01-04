@@ -235,27 +235,146 @@ for i = 1:parts
 end
 clear data i
 
-%% 5.6 Reorganizing the vpath and Gamma 
-vpath_Sub = cell(parts,1);
-Gamma_Sub = cell(parts,1);
-data = Rest_hmm12.N_nonempty;
-vdata = Rest_hmm12.vpath;
-gdata = Rest_hmm12.Gamma;
-start = 1;
-for i = 1:parts
-    dex = length(data{i});
-    stop = dex*(5120);%how many timepoints per piece (20 s at 512/2 Hz)
-    newdata = vdata(start:(start-1)+stop);
-    newgamma = gdata(start:(start-1)+stop,:);
-    start = stop+1;
-    vpath_Sub{i} = newdata;
-    Gamma_Sub{i} = newgamma;
-end
-Rest_hmm12.vpath_Sub = vpath_Sub;
-Rest_hmm12.Gamma_Sub = Gamma_Sub;
-clear vpath_Sub data vdata start i dex stop newdata Gamma_Sub gdata
+%% 5.6 Vpath and Gamma by participant and piece:
+%Reorganizing the vpath and Gamma
+vpath_Sub = cell(17,1);
+Gamma_Sub = cell(17,1);
+data = Rest_hmm20s12.N_nonempty;
+vdata = Rest_hmm20s12.vpath;
+gdata = Rest_hmm20s12.Gamma;
 
-clear piece_start piece_stop s piecedata piecedex
+vdata = reshape(vdata,5120,792)';%792 is the # of cells. Figure out how to index this
+gammadata = cell(1,12);
+%% Break Gamma into a cell array
+for i = 1:12
+    G = gdata(:,i);
+    G = reshape(G,5120,792)';
+    gammadata{i} = G;
+    disp(i)
+end
+clear i G
+%% Getting the vpath divided up by participant
+start = 1;
+for part = 1:17
+    newdata = nan(53,5120);
+    dex = length(data{part});
+    index = data{part};
+    stop = (start-1)+dex;%how many timepoints per piece (20 s at 256/2 Hz)
+    newdata(index,:) = vdata(start:stop,:);
+    start = stop+1;
+    vpath_Sub{part} = newdata;
+end
+Rest_hmm20s12.vpath_Sub = vpath_Sub;
+
+% check the data!
+x = cell2mat(vpath_Sub);
+x(any(isnan(x), 2), :) = [];
+y = vdata;
+if isequal(x,y)
+    disp('The data is good!')
+else
+    disp('The data is full of spiders - audit this!')
+end
+clear piece_start piece_stop s piecedata piecedex x y
+clear vpath_Sub vdata start i dex stop newdata index 
+%% Now do Gamma!
+Gamma_Sub = cell(17,12);
+for K = 1:12 %state-wise
+    start = 1;
+    for part = 1:17%participants
+    newdata = nan(53,5120);
+    dex = length(data{part});
+    index = data{part};
+    stop = (start-1)+dex;
+    newdata(index,:) = gammadata{K}(start:stop,:);
+    start = stop+1;
+    Gamma_Sub{part,K} = newdata;
+    end
+end
+Rest_hmm20s12.Gamma_Sub = Gamma_Sub;
+%% Check ALL The data!
+checkmat = nan(1,12);
+for K = 1:12
+    x = cell2mat(Gamma_Sub(:,K));
+    x(any(isnan(x), 2), :) = [];
+    y = gammadata{K};
+    checkmat(K) = isequal(x,y);
+end
+
+if sum(checkmat)==K
+    disp('The data is good!')
+else
+    disp('The data is full of spiders - audit this!')
+end
+clear K start stop dex index G gammadata newdata Gamma_Sub x y
+
+
+%%5.7 Reorganizing the vpath by piece:
+
+data = Rest_hmm20s12.vpath_Sub;%get the long vpath vectors
+vpath_Piece = cell(17,53);%initialize a participant*piece cell
+for part = 1:17%participants
+    tempdata = data{part};%and the vector
+    for piece = 1:53
+        if isnan(tempdata(piece,:))
+            continue
+        else
+        vpath_Piece{part,piece} = tempdata(piece,:);
+        end
+    end
+end
+%% Now do Gamma!
+gdata = Rest_hmm20s12.Gamma_Sub;
+Gamma_Piece = cell(17,53);
+for part = 1:17
+    tempmat = nan(12,5120);
+    for piece = 1:53
+    for state = 1:12
+        tempdata = gdata{part,state}(piece,:);
+        tempmat(state,:) = tempdata;
+    end
+    if sum(isnan(tempmat))>0
+            continue
+        else
+            Gamma_Piece{part,piece} = tempmat;
+    end
+    end
+end
+%% Spot check!
+%vpath:
+part = 17;
+piece = 4;
+y = data{part}(piece,:);
+x = vpath_Piece{part,piece};
+if isequal(x,y)
+    disp('These data are good!')
+else
+    disp('Misery and suffering!')
+end
+%%
+%Gamma:
+checkmat = nan(1,12);
+part = 1;
+piece = 1;
+tempdata = Gamma_Piece{part,piece};
+for K = 1:12
+    x = Rest_hmm20s12.Gamma_Sub{part,K}(piece,:);
+    y = tempdata(K,:);
+    checkmat(K) = isequal(x,y);
+end
+
+if sum(checkmat)==K
+    disp('These data are good!')
+else
+    disp('Misery and suffering!Audit this')
+end
+
+%% Now we add it to the array!    
+Rest_hmm20s12.vpath_Piece = vpath_Piece;% put it in the array!
+Rest_hmm20s12.Gamma_Piece = Gamma_Piece;
+
+clear data vpath_Piece i piecedex tempdata start s stop piecedata piecedatag Gamma_Piece % and make look nice
+
 %% 5.7 Reorganizing the vpath by piece:
 
 data = Rest_hmm12.vpath_Sub;%get the long vpath vectors
@@ -279,6 +398,7 @@ end
 Rest_hmm12.vpath_Piece = vpath_Piece;% put it in the array!
 Rest_hmm12.Gamma_Piece = Gamma_Piece;
 clear data vpath_Piece i piecedex tempdata start s stop piecedata piecedatag Gamma_Piece
+
 %% 6. Graph Theory
 addpath(genpath('BCT'));
 mod = nan(1,K);% pre-allocating variables
@@ -311,6 +431,7 @@ end
 Rest_hmm12.mod = mod;%put it in the array!
 Rest_hmm12.var = vars;
 clear p Q s mod v var
+
 %% 6.2 Now, source-wise variables!
 strengths = cell(1,K);%strength
 evc = cell(1,K);%eigenvector centrality 
