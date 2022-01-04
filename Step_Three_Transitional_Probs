@@ -1,49 +1,26 @@
 %% Getting the Transitional Probability matrices manually
-% this script is an adaptation of the HMM function getTransProbs.
+% this script uses the HMM toolbox function getMaskedTransProbMats.
 % The input matrix (INPUT) is a task*participant cell matrix of the vpath,
 % which you can get by dividing up the vpath you get from the HMM analysis
 % by time. The output (OUTPUT) will be a task*participant cell matrix of
-% transitional probability matrices. These may be smaller than K
-% (sometimes, not all states are represented),which is okay! I wrote a
-% function called square_insert.m (you can download it here:
-% https://github.com/fabsarah/square_insert) that will fix this
+% transitional probability matrices with state persistence (the likelihood 
+% of staying in-state)included: the diagonal numbers will not be zero!
 
-subs = 17;%how many particpants you have
-task = 53;%how many tasks you have
-Fs = 256;%your sampling rate
-OUTPUT = cell(task,subs);
-wdws = 20;%how many time windows do you have?
-for i = 1:task%task
-    for part = 1:subs %participant
-    tempdata = INPUT{part,i};
-    if isempty(tempdata)
-        continue
-    else
-    tempdata = reshape(tempdata,Fs,[])';
-    tempdata = double(tempdata);
-    tempout = cell(1,20);
-    for sec = 1:wdws
-        tempdata2 = tempdata(sec,:);
-        tempstates = unique(tempdata2);%seeing if we have missing states
-        missing = setdiff((1:12),tempstates);%getting a vector of missing states
-        counts_mat = full(sparse(tempdata2(1:end-1),tempdata2(2:end),1));
-        tp_mat = bsxfun(@rdivide,counts_mat,sum(counts_mat,2));%getting the matrix
-        TP = tp_mat;
-        [K,~,Q] = size(TP);
-        for j = 1:Q
-            TPj = TP(:,:,j);
-            %TPj(eye(K)==1) = 0;
-                for k = 1:K
-                    TPj(k,:) = TPj(k,:) / sum(TPj(k,:)); 
-                end
-            TP(:,:,j) = TPj; 
-        end
+%% First, if you didn't extract Xi in the original HMM, you can re-extract it here
+% using the original output Gamma parameter
+nrows = 5120; %the length of your original input data per cell
+ncells = 792; %how many cells you had in your original input dta
+Xi = approximateXi(Gamma,(nrows*ncells),hmm);
+Rest_hmm12.Xi = Xi; %add it to the structure file
 
-        tempout{sec} = TP;
-    end
-    OUTPUT{i,part} = tempout;
-    end
-    end
-end
-clear missing i j k TPj TP K Q tempdata counts_mat trans_mat tempout...
-    tempdata2 tp_mat sec tempstates
+%% Now run the function
+data = vpath;
+T = ncells;%how many cells you had in your ORIGINAL long input cell array that went into HMM
+testMask = 1:length(data);%Get the mask indices
+Mask = reshape(testMask,[],T)';%reshape them task-wise
+outMask = num2cell(Mask,2); %convert the Mask indices to a cell
+[P,Pi] = getMaskedTransProbMats(test,T*nrows,hmm,outMask,Gamma,Xi);%get the matrices
+
+Rest_hmm12.TPT.TPT_P = TPT_P;%the state*state matrix
+Rest_hmm12.TPT.TPT_Pi = TPT_Pi;%each state's weight
+clear nrows ncells
