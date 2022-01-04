@@ -87,6 +87,37 @@ end
 
 Rest_hmm12.FC = FC;%add it to the structure array
 clear i S  % make look nice
+
+%% 5.5.1 Switching Rate and Fractional Occupancy:
+data = Rest_hmm12.Gamma;%getting the relevant HMM output
+options = Rest_hmm12.options;
+T = Rest_hmm12.T_ds;
+SR = getSwitchingRate(data,T,options);
+FO = getFractionalOccupancy(data,T,options,2);
+N_nonempty = Rest_hmm12.N_nonempty;
+%This will give us long column vectors of data (pieces*participants), so
+% next, we get it back in matrix and cell space:
+
+start = 1;% initialize a counter
+tasks = 53;%how many tasks?
+parts = 17;%how many participants?
+tempmat_SR = nan(tasks,parts);%initialize the empty matrix for SR
+tempmat_FO = cell(1,parts);%empty cell array for FO (task*state*participant)
+
+for i = 1:parts% Participants
+    tempdataFO = nan(tasks,parts);%initializing the FO matrix
+    dex = N_nonempty{i};% each participant's unique piece index
+    tempdata = SR(start:(start-1)+length(dex));%getting their SR data
+    tempmat_SR(dex,i) = tempdata;%populating the relevant rows in the empty matrix
+    tempdataFO(dex,:) = FO(start:(start-1)+length(dex),:);% getting each participant's FO data
+    tempmat_FO{i} = tempdataFO;%putting it in a cell
+    start = start+length(dex);%rolling over the counter to pick up where this one left off
+end
+
+Rest_hmm12.Metrics.SR = tempmat_SR;% put it in the array!
+Rest_hmm12.Metrics.FO = tempmat_FO;
+clear data options T temp SR FO start tempmat_SR tempmat_FO i dex tempdata array plotdata% make look nice
+
 %% 5.1.2 Plotting the transitional probability matrix and FC matrices:
 K = Rest_hmm12.options.K;
 figure 
