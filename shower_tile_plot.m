@@ -4,7 +4,7 @@ function s = shower_tile_plot(inmat)
 % everything's the right way up, and that we don't lose a row/column of
 % data. For plotting PLS results, reshape and threshold them before getting
 % here. I haven't included syntax for axis ticks, labelling, or titles, so
-% also do those. 
+% add those in the plot script 
 %%
 nrows = size(inmat,1);
 ncols = size(inmat,2);
