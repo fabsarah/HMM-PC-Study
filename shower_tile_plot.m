@@ -2,7 +2,9 @@ function s = shower_tile_plot(inmat)
 % A function to plot matrix data with neat lines between everything like
 % pcolor...but with all the weird intermediary steps necessary to make sure
 % everything's the right way up, and that we don't lose a row/column of
-% data. For plotting PLS results, reshape and threshold them before getting
+% data (it kind of looks like shower tiles to me). 
+%
+% For plotting PLS results, reshape and threshold them before getting
 % here. I haven't included syntax for axis ticks, labelling, or titles, so
 % add those in the plot script 
 %%
