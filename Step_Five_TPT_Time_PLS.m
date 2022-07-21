@@ -1,10 +1,12 @@
 %% Let's correlate some TProb matrices!
+%In this script, I extract transitional probability (TP) matrices with music data over time, and use these correlation matrices in PLS
+
 % Step one: get the matrices
-data = Rest_hmmPaper;
-vpath = data.vpath;
+data = Rest_hmmPaper;%where I store the variables
+vpath = data.vpath;%getting the vpath...see Step_One for how this is extracted
 T = 792*20;
-Xi = data.Xi;
-Gamma = data.Gamma;
+Xi = data.Xi;%This can be extracted when you run hmm the first time. I forgot, so am running it now
+Gamma = data.Gamma;%The Gamma and hmm arguments are output from the initial hmm run
 hmm = data.hmm;
 
 testMask = 1:length(vpath);%Get the mask indices
